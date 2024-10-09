@@ -1,0 +1,84 @@
+name: Pull latest changes from quickstart repository
+on: 
+  workflow_dispatch:
+  schedule:
+    - cron: '0 13 * * 1'
+jobs:
+  pull-request-source-repo:
+    name: Create pull request
+    runs-on: ubuntu-latest
+    env:
+      WORKING_BRANCH: 
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          repository: azure-samples/cosmos-db-nosql-dotnet-quickstart
+          ref: main
+          path: source
+          fetch-depth: 2
+          sparse-checkout: |
+            src
+      - name: Get GitHub App token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.PORTAL_QUICKSTART_SYNCHRONIZER_APP_ID }}
+          private-key: ${{ secrets.PORTAL_QUICKSTART_SYNCHRONIZER_PRIVATE_KEY }}
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          path: target
+      - name: Get GitHub App User ID
+        id: get-user-id
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+      - name: Configure git
+        working-directory: target
+        run: |
+          git config --global user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config --global user.email '${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com>'
+      - name: Generate date variables
+        run: |
+          echo "CURRENT_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+          echo "WORKING_BRANCH=auto-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+      - name: Create working branch
+        working-directory: target
+        run: git checkout -b $WORKING_BRANCH
+      - name: Copy source to target
+        run: cp -ra source/src/. target/
+      - name: Change text content
+        working-directory: target
+        run: |
+          content=$(cat .github/workflows/replace.cs)
+          awk -v content="$content" '
+          BEGIN { in_block = 0 }
+          /^\s*\/\/ <client_configuration>/ { in_block = 1; print content; next }
+          /^\s*\/\/ <\/client_configuration>/ { in_block = 0; next }
+          !in_block { print }
+          ' web/Program.cs > web/Program.tmp.cs && mv web/Program.tmp.cs web/Program.cs
+      - name: Add changes to git
+        working-directory: target
+        run: |
+          git add .
+      - name: Check if files are changed
+        id: check-files
+        working-directory: target
+        run: |
+          echo "status=$(git diff --shortstat --staged)" >> $GITHUB_OUTPUT
+      - name: Commit and push changes
+        if: ${{ steps.check-files.outputs.status != '' }}
+        working-directory: target
+        run: |
+          git commit -m "Automatically generated commit"
+          git push --set-upstream origin $WORKING_BRANCH
+      - name: Create auto-merge pull request
+        if: ${{ steps.check-files.outputs.status != '' }}
+        working-directory: target
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          url=$(gh pr create --title "[AUTO] $CURRENT_DATE | Merge latest from source repo" --body "${{ steps.check-files.outputs.status}}" --base main --head $WORKING_BRANCH)          
+          gh pr merge --auto --merge $url
+          echo $url

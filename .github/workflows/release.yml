@@ -1,0 +1,36 @@
+name: Create release for default branch
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+jobs:
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Get GitHub App token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.PORTAL_QUICKSTART_SYNCHRONIZER_APP_ID }}
+          private-key: ${{ secrets.PORTAL_QUICKSTART_SYNCHRONIZER_PRIVATE_KEY }}
+      - name: Generate output
+        id: generate
+        run: |
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "tag=release-$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+      - name: Create compressed folder
+        run: |
+          mkdir out
+          git archive --format=zip --output out/project.zip main
+      - name: Push release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh release create ${{ steps.generate.outputs.tag }} \
+            'out/project.zip#Project folder' \
+            --title 'Release ${{ steps.generate.outputs.date }}'
+      
