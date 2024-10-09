@@ -19,14 +19,16 @@ jobs:
       - name: Checkout source repository
         uses: actions/checkout@v4
         with:
-          token: ${{ steps.app-token.outputs.token }}
           repository: azure-samples/cosmos-db-nosql-dotnet-quickstart
           ref: main
           path: source
       - name: Checkout target repository
         uses: actions/checkout@v4
         with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ github.head_ref }}
           path: target
+          persist-credentials: false
       - name: Get GitHub App User ID
         id: get-user-id
         env:
