@@ -28,7 +28,6 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           ref: ${{ github.head_ref }}
           path: target
-          persist-credentials: false
       - name: Get GitHub App User ID
         id: get-user-id
         env:
