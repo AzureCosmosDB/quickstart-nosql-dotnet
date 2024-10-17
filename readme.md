@@ -14,5 +14,6 @@ Sample ASP.NET web application using Azure Cosmos DB for NoSQL.
 1. Start the application:
 
     ```shell
+    cd web
     dotnet run
     ```
