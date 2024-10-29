@@ -46,6 +46,7 @@ jobs:
         working-directory: target
         run: git checkout -b $WORKING_BRANCH
       - name: Clear existing project
+        working-directory: target
         run: find . -mindepth 1 ! -regex '\./\(\.devcontainer\|\.github\|LICENSE\|readme\.md\)' -print0 | xargs -0 rm -rf
       - name: Copy source to target
         run: cp -ra source/src/. target/
